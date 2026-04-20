@@ -21,21 +21,75 @@ CLASS_NAMES = {
     4: "Proliferative DR"
 }
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "DR_detection_model.h5")
-# Custom CSS for about section
+# Custom CSS for premium medical look
 st.markdown("""
 <style>
-.about-section {
-    background-color: #f8f9fa;
-    border-left: 4px solid #4682B4;
-    padding: 20px;
-    border-radius: 5px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-.about-section h3 {
-    color: #4682B4;
-    margin-top: 0;
-}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stApp {
+        background-color: #F7FAFC;
+    }
+    
+    .main-header {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        margin-bottom: 2rem;
+        border-top: 5px solid #2B6CB0;
+    }
+    
+    .about-section {
+        background: white;
+        border: 1px solid #E2E8F0;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    }
+    
+    .about-section h3 {
+        color: #2C5282;
+        font-weight: 600;
+        margin-top: 0;
+        border-bottom: 2px solid #E2E8F0;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .stButton>button {
+        border-radius: 6px;
+        background-color: #2B6CB0;
+        color: white;
+        border: none;
+        padding: 0.6rem 2.5rem;
+        font-weight: 600;
+        transition: background-color 0.2s;
+    }
+    
+    .stButton>button:hover {
+        background-color: #2C5282;
+        border-color: #2C5282;
+    }
+    
+    .metric-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        border: 1px solid #E2E8F0;
+    }
+    
+    .feature-card {
+        background: #EDF2F7;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 4px solid #4299E1;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,37 +137,38 @@ def display_metrics():
 @st.cache_resource
 def load_model_safely():
     try:
-        # First try to load the complete model using MODEL_PATH
-        try:
-            model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-            return model
-        except Exception as e1:
-            # ...rest of existing function code...
-            # Create model with the same architecture as in training
-            inputs = tf.keras.layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
-            base_model = tf.keras.applications.EfficientNetB0(
-                include_top=False, 
-                weights='imagenet',  # Start with ImageNet weights
-                input_tensor=inputs
-            )
-            
-            # Add classification head matching your training code
-            x = tf.keras.layers.GlobalAveragePooling2D()(base_model.output)
-            x = tf.keras.layers.Dense(512, activation='relu')(x)
-            output = tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')(x)
-            
-            model = tf.keras.Model(inputs=inputs, outputs=output)
-            
-            # Try to load just the weights
+        # First try to load the complete model
+        if os.path.exists(MODEL_PATH):
             try:
-                model.load_weights('DR_detection_model.h5')
+                model = tf.keras.models.load_model(MODEL_PATH, compile=False)
                 return model
-            except Exception as e2:
-                raise e2
+            except Exception as e1:
+                st.warning(f"Could not load full model: {e1}. Attempting to rebuild architecture and load weights...")
+                
+                # Rebuild architecture
+                inputs = tf.keras.layers.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
+                base_model = tf.keras.applications.EfficientNetB0(
+                    include_top=False, 
+                    weights=None,
+                    input_tensor=inputs
+                )
+                
+                x = tf.keras.layers.GlobalAveragePooling2D()(base_model.output)
+                x = tf.keras.layers.Dense(512, activation='relu')(x)
+                output = tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')(x)
+                
+                model = tf.keras.Model(inputs=inputs, outputs=output)
+                
+                # Try to load weights
+                model.load_weights(MODEL_PATH)
+                return model
+        else:
+            st.error(f"Model file not found at {MODEL_PATH}")
+            return None
             
     except Exception as e:
         st.error(f"Failed to load model: {e}")
-        st.info("Try re-saving your model with your current TensorFlow version or check the model architecture.")
+        st.info("Ensure you have the correct model file (DR_detection_model.h5) in the project directory.")
         return None
 
 # Check image quality
@@ -350,19 +405,32 @@ def process_single_image(model, image, use_clahe=True, clahe_clip=2.0, denoise=F
 # Main app
 def main():
     # Add a nice header
-    st.title("👁️ Diabetic Retinopathy Detection")
+    st.markdown("""
+    <div class="main-header">
+        <h1 style='margin:0; color:#2B6CB0;'>👁️ Diabetic Retinopathy Detection</h1>
+        <p style='margin:0; color:#4A5568; font-weight:400;'>High-Precision AI Retinal Diagnostic Tool</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Add about section in a styled div below title
     st.markdown("""
     <div class="about-section">
-        <h3>About this application</h3>
-        <p>This AI-powered tool detects diabetic retinopathy severity from retinal images using deep learning.</p>
-        <ul>
-            <li>Upload one or more retinal images</li>
-            <li>The AI model will analyze each image</li>
-            <li>Results show the detected DR grade and confidence</li>
-            <li>Visualizations highlight important regions the model focuses on</li>
-        </ul>
+        <h3>📊 Clinical Decision Support</h3>
+        <p>This system assists ophthalmic clinicians by identifying the severity of diabetic retinopathy using <b>EfficientNet-B0</b> deep learning analysis.</p>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;">
+            <div class="feature-card" style="flex: 1; min-width: 200px;">
+                <b style="color: #2C5282;">🩺 Stage Diagnosis</b><br>
+                <small>Automated classification across all 5 clinical stages of DR.</small>
+            </div>
+            <div class="feature-card" style="flex: 1; min-width: 200px;">
+                <b style="color: #2C5282;">📍 Lesion Localization</b><br>
+                <small>Grad-CAM heatmaps to visualize vascular abnormalities.</small>
+            </div>
+            <div class="feature-card" style="flex: 1; min-width: 200px;">
+                <b style="color: #2C5282;">🎛️ Image Enhancement</b><br>
+                <small>Built-in CLAHE and denoising for low-quality fundus scans.</small>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
